@@ -1,6 +1,6 @@
-import { forwardRef } from "react";
+import { forwardRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
-import { Text, Chip } from "react-native-paper";
+import { Text, Chip, Dialog, Portal, Button } from "react-native-paper";
 import { ACHIEVEMENTS } from "@/utils/achievement"; // Assuming ACHIEVEMENTS is in a constants file
 import QRBlock from "@/components/QRBlock";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -20,6 +20,9 @@ export const ShareCard = forwardRef<View, Props>(
       e: String(earned.join(",")),
     }).toString();
 
+    const [selectedAchievement, setSelectedAchievement] = useState<
+      null | (typeof ACHIEVEMENTS)[number]
+    >(null);
     const qrPayload = `https://karateapp.monster0506.dev/?${query}`;
     return (
       <View ref={ref} style={styles.card}>
@@ -31,7 +34,12 @@ export const ShareCard = forwardRef<View, Props>(
 
         <View style={styles.badges}>
           {ACHIEVEMENTS.filter((a) => earned.includes(a.id)).map((a) => (
-            <Chip key={a.id} compact style={styles.chip}>
+            <Chip
+              key={a.id}
+              compact
+              style={styles.chip}
+              onPress={() => setSelectedAchievement(a)}
+            >
               {a.label}
             </Chip>
           ))}
@@ -40,6 +48,23 @@ export const ShareCard = forwardRef<View, Props>(
         <View style={styles.qr}>
           <QRBlock value={qrPayload} />
         </View>
+
+        <Portal>
+          <Dialog
+            visible={!!selectedAchievement}
+            onDismiss={() => setSelectedAchievement(null)}
+          >
+            <Dialog.Title>{selectedAchievement?.label}</Dialog.Title>
+            <Dialog.Content>
+              <Text>{selectedAchievement?.description}</Text>
+            </Dialog.Content>
+            <Dialog.Actions>
+              <Button onPress={() => setSelectedAchievement(null)}>
+                Close
+              </Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
       </View>
     );
   },

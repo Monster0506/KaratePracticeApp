@@ -170,6 +170,12 @@ export const TechniquesProvider: React.FC<{ children: React.ReactNode }> = ({
     const pl = playlists.map((p) =>
       p.name === playlistName ? { ...p, ids: [...new Set([...p.ids, id])] } : p,
     );
+    logFlagEvent({
+      type: "playlist-add",
+      technique: id,
+      playlist: playlistName,
+    });
+
     persistPlaylists(pl);
   };
 

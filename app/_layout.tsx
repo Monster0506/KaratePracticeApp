@@ -5,8 +5,10 @@ import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { TechniquesProvider } from "@/context/TechniquesProvider";
 import { StatusBar } from "expo-status-bar";
 import { View, StyleSheet } from "react-native";
+import { useAnonymousAuth } from "@/hooks/useAnonAuth";
 
 export default function RootLayout() {
+  useAnonymousAuth();
   return (
     <SafeAreaProvider>
       <PaperProvider theme={MD3DarkTheme}>

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { View, ScrollView, StyleSheet } from "react-native";
-import { Text, useTheme, Divider } from "react-native-paper";
+import { Text, useTheme, Divider, Portal, Dialog } from "react-native-paper";
 import { getPracticeHistory, PracticeSession } from "@/utils/practiceLogger";
 import { useRouter } from "expo-router";
 import { getTechniqueViews, TechniqueViewEvent } from "@/utils/viewLogger";
@@ -13,6 +13,10 @@ export default function PracticeStatsScreen() {
   const [history, setHistory] = useState<PracticeSession[]>([]);
   const [views, setViews] = useState<TechniqueViewEvent[]>([]);
   const [flags, setFlags] = useState<FlagEvent[]>([]);
+
+  const [selectedAchievement, setSelectedAchievement] = useState<
+    null | (typeof ACHIEVEMENTS)[number]
+  >(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -141,13 +145,25 @@ export default function PracticeStatsScreen() {
           {name}: {count}
         </Text>
       ))}
-      <Text variant="titleMedium">Achievements</Text>
-      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}>
-        {ACHIEVEMENTS.filter((a) => earned.includes(a.id)).map((a) => (
-          <Chip key={a.id} compact>
-            {a.label}
-          </Chip>
-        ))}
+      <Divider style={styles.divider} />
+      <Text variant="titleMedium" style={{ marginBottom: 8 }}>
+        Achievements
+      </Text>
+      <View style={styles.achievements}>
+        {ACHIEVEMENTS.map((a) => {
+          const earnedIt = earned.includes(a.id);
+          return (
+            <Chip
+              key={a.id}
+              icon={earnedIt ? "star-circle" : "circle-outline"}
+              mode={earnedIt ? "flat" : "outlined"}
+              style={[styles.achievementChip, { opacity: earnedIt ? 1 : 0.4 }]}
+              onPress={() => setSelectedAchievement({ ...a })}
+            >
+              {a.label}
+            </Chip>
+          );
+        })}
       </View>
       <Button
         mode="outlined"
@@ -156,6 +172,21 @@ export default function PracticeStatsScreen() {
       >
         Generate Share Card
       </Button>
+
+      <Portal>
+        <Dialog
+          visible={!!selectedAchievement}
+          onDismiss={() => setSelectedAchievement(null)}
+        >
+          <Dialog.Title>{selectedAchievement?.label}</Dialog.Title>
+          <Dialog.Content>
+            <Text>{selectedAchievement?.description}</Text>
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button onPress={() => setSelectedAchievement(null)}>Close</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </ScrollView>
   );
 }
@@ -164,4 +195,12 @@ const styles = StyleSheet.create({
   container: { padding: 20, flexGrow: 1 },
   header: { marginBottom: 16 },
   divider: { marginVertical: 12, opacity: 0.3 },
+  achievements: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  achievementChip: {
+    alignSelf: "flex-start",
+  },
 });
