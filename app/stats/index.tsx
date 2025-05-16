@@ -1,206 +1,412 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { View, ScrollView, StyleSheet } from "react-native";
-import { Text, useTheme, Divider, Portal, Dialog } from "react-native-paper";
-import { getPracticeHistory, PracticeSession } from "@/utils/practiceLogger";
+import {
+  Text,
+  useTheme,
+  Divider,
+  Portal,
+  Dialog,
+  Chip,
+  Button,
+  Appbar, // Added
+  Card, // Added
+  List, // Added
+  ActivityIndicator, // Added
+  IconButton, // Added
+} from "react-native-paper";
+import { getPracticeHistory } from "@/utils/practiceLogger";
 import { useRouter } from "expo-router";
-import { getTechniqueViews, TechniqueViewEvent } from "@/utils/viewLogger";
-import { getFlagEvents, FlagEvent } from "@/utils/flagLogger";
+import { getTechniqueViews } from "@/utils/viewLogger";
+import { getFlagEvents } from "@/utils/flagLogger";
 import { ACHIEVEMENTS, getAchievements } from "@/utils/achievement";
-import { Chip, Button } from "react-native-paper";
+import { TechniqueViewEvent, FlagEvent, PracticeSession } from "@/types/Events";
+
+// Define a type for the achievement object for clarity
+type Achievement = (typeof ACHIEVEMENTS)[number];
 
 export default function PracticeStatsScreen() {
   const theme = useTheme();
+  const router = useRouter();
+
   const [history, setHistory] = useState<PracticeSession[]>([]);
   const [views, setViews] = useState<TechniqueViewEvent[]>([]);
   const [flags, setFlags] = useState<FlagEvent[]>([]);
-
-  const [selectedAchievement, setSelectedAchievement] = useState<
-    null | (typeof ACHIEVEMENTS)[number]
-  >(null);
-  const router = useRouter();
+  const [loading, setLoading] = useState(true);
+  const [selectedAchievement, setSelectedAchievement] =
+    useState<Achievement | null>(null);
 
   useEffect(() => {
-    getPracticeHistory().then(setHistory);
-    getTechniqueViews().then(setViews);
-    getFlagEvents().then(setFlags);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [practiceData, viewData, flagData] = await Promise.all([
+          getPracticeHistory(),
+          getTechniqueViews(),
+          getFlagEvents(),
+        ]);
+        setHistory(practiceData);
+        setViews(viewData);
+        setFlags(flagData);
+      } catch (error) {
+        console.error("Failed to fetch stats:", error);
+        // Optionally set an error state here
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
   }, []);
-  // --- Practice session stats ---
-  const totalSessions = history.length;
-  const allTechniques = history.flatMap((s) => s.techniques);
-  const uniqueTechniques = new Set(allTechniques);
 
-  const practicedCounts = allTechniques.reduce(
-    (acc, name) => {
-      acc[name] = (acc[name] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
+  const stats = useMemo(() => {
+    const totalSessions = history.length;
+    const allTechniquesPracticed = history.flatMap((s) => s.techniques);
+    const uniqueTechniquesPracticed = new Set(allTechniquesPracticed);
 
-  const mostPracticed = Object.entries(practicedCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5);
+    const practicedCounts = allTechniquesPracticed.reduce(
+      (acc, name) => {
+        acc[name] = (acc[name] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+    const mostPracticed = Object.entries(practicedCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
 
-  // --- View stats ---
-  const viewCounts = views.reduce(
-    (acc, v) => {
-      acc[v.name] = (acc[v.name] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
+    const viewCounts = views.reduce(
+      (acc, v) => {
+        acc[v.name] = (acc[v.name] || 0) + 1;
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+    const mostViewed = Object.entries(viewCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
 
-  const mostViewed = Object.entries(viewCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5);
-
-  // --- Flag stats ---
-  const flagCounts = flags.reduce(
-    (acc, evt) => {
-      if (evt.type === "flag") {
+    const flagEvents = flags.filter((f) => f.type === "flag");
+    const flagCounts = flagEvents.reduce(
+      (acc, evt) => {
         acc[evt.technique] = (acc[evt.technique] || 0) + 1;
-      }
-      return acc;
-    },
-    {} as Record<string, number>,
-  );
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+    const mostFlagged = Object.entries(flagCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
 
-  const mostFlagged = Object.entries(flagCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5);
-
-  // --- Playlist stats ---
-  const playlistAddCounts = flags.reduce(
-    (acc, evt) => {
-      if (evt.type === "playlist-add") {
+    const playlistAddEvents = flags.filter((f) => f.type === "playlist-add");
+    const playlistAddCounts = playlistAddEvents.reduce(
+      (acc, evt) => {
         acc[evt.technique] = (acc[evt.technique] || 0) + 1;
-      }
-      return acc;
-    },
-    {} as Record<string, number>,
+        return acc;
+      },
+      {} as Record<string, number>,
+    );
+    const mostPlaylisted = Object.entries(playlistAddCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 5);
+
+    const earnedAchievements = getAchievements({
+      sessions: totalSessions,
+      techniques: allTechniquesPracticed.length,
+      views: views.length,
+      playlists: playlistAddEvents.length,
+    });
+
+    return {
+      totalSessions,
+      allTechniquesPracticedCount: allTechniquesPracticed.length,
+      uniqueTechniquesPracticedCount: uniqueTechniquesPracticed.size,
+      totalViews: views.length,
+      totalFlagEvents: flagEvents.length,
+      totalPlaylistAdds: playlistAddEvents.length,
+      mostPracticed,
+      mostViewed,
+      mostFlagged,
+      mostPlaylisted,
+      earnedAchievements,
+    };
+  }, [history, views, flags]);
+
+  const StatItem = ({ label, value }: { label: string; value: any }) => (
+    <View style={styles.statItemContainer}>
+      <Text
+        variant="bodyLarge"
+        style={[styles.statLabel, { color: theme.colors.onSurfaceVariant }]}
+      >
+        {label}:
+      </Text>
+      <Text
+        variant="bodyLarge"
+        style={[styles.statValue, { color: theme.colors.primary }]}
+      >
+        {value}
+      </Text>
+    </View>
   );
 
-  const mostPlaylisted = Object.entries(playlistAddCounts)
-    .sort(([, a], [, b]) => b - a)
-    .slice(0, 5);
+  const TopList = ({
+    title,
+    items,
+    icon,
+  }: {
+    title: string;
+    items: [string, number][];
+    icon: string;
+  }) => (
+    <Card style={styles.card}>
+      <List.Section>
+        <List.Subheader
+          style={[styles.subHeader, { color: theme.colors.onSurface }]}
+        >
+          <List.Icon icon={icon} color={theme.colors.primary} />
+          {title}
+        </List.Subheader>
+        {items.length > 0 ? (
+          items.map(([name, count]) => (
+            <List.Item
+              key={name}
+              title={name}
+              right={() => (
+                <Text
+                  style={{
+                    color: theme.colors.secondary,
+                    alignSelf: "center",
+                  }}
+                >
+                  {count} times
+                </Text>
+              )}
+              titleStyle={{ color: theme.colors.onSurfaceVariant }}
+            />
+          ))
+        ) : (
+          <Text style={styles.emptyListText}>No data yet.</Text>
+        )}
+      </List.Section>
+    </Card>
+  );
 
-  const earned = getAchievements({
-    sessions: totalSessions,
-    techniques: allTechniques.length,
-    views: views.length,
-    playlists: flags.filter((f) => f.type === "playlist-add").length,
-    // longestStreak,
-  });
+  if (loading) {
+    return (
+      <View
+        style={[
+          styles.loadingContainer,
+          { backgroundColor: theme.colors.background },
+        ]}
+      >
+        <ActivityIndicator animating={true} size="large" />
+        <Text style={{ marginTop: 10, color: theme.colors.onSurface }}>
+          Loading stats...
+        </Text>
+      </View>
+    );
+  }
+
   return (
-    <ScrollView
-      contentContainerStyle={[
-        styles.container,
+    <View
+      style={[
+        styles.pageContainer,
         { backgroundColor: theme.colors.background },
       ]}
     >
-      <Text variant="headlineSmall" style={styles.header}>
-        Practice Stats
-      </Text>
-
-      <Text>Total Sessions: {totalSessions}</Text>
-      <Text>Total Techniques Practiced: {allTechniques.length}</Text>
-      <Text>Unique Techniques Practiced: {uniqueTechniques.size}</Text>
-      <Text>Total Technique Views: {views.length}</Text>
-      <Text>
-        Total Flag Events: {flags.filter((f) => f.type === "flag").length}
-      </Text>
-      <Text>
-        Total Playlist Adds:{" "}
-        {flags.filter((f) => f.type === "playlist-add").length}
-      </Text>
-
-      <Divider style={styles.divider} />
-      <Text variant="titleMedium">Most Practiced Techniques</Text>
-      {mostPracticed.map(([name, count]) => (
-        <Text key={name}>
-          {name}: {count}
-        </Text>
-      ))}
-
-      <Divider style={styles.divider} />
-      <Text variant="titleMedium">Most Viewed Techniques</Text>
-      {mostViewed.map(([name, count]) => (
-        <Text key={name}>
-          {name}: {count}
-        </Text>
-      ))}
-
-      <Divider style={styles.divider} />
-      <Text variant="titleMedium">Most Flagged Techniques</Text>
-      {mostFlagged.map(([name, count]) => (
-        <Text key={name}>
-          {name}: {count}
-        </Text>
-      ))}
-
-      <Divider style={styles.divider} />
-      <Text variant="titleMedium">Most Added to Playlists</Text>
-      {mostPlaylisted.map(([name, count]) => (
-        <Text key={name}>
-          {name}: {count}
-        </Text>
-      ))}
-      <Divider style={styles.divider} />
-      <Text variant="titleMedium" style={{ marginBottom: 8 }}>
-        Achievements
-      </Text>
-      <View style={styles.achievements}>
-        {ACHIEVEMENTS.map((a) => {
-          const earnedIt = earned.includes(a.id);
-          return (
-            <Chip
-              key={a.id}
-              icon={earnedIt ? "star-circle" : "circle-outline"}
-              mode={earnedIt ? "flat" : "outlined"}
-              style={[styles.achievementChip, { opacity: earnedIt ? 1 : 0.4 }]}
-              onPress={() => setSelectedAchievement({ ...a })}
-            >
-              {a.label}
-            </Chip>
-          );
-        })}
-      </View>
-      <Button
-        mode="outlined"
-        style={{ marginTop: 16 }}
-        onPress={() => router.push("/share")}
+      <Appbar.Header
+        style={{ backgroundColor: theme.colors.surface }}
+        statusBarHeight={0}
       >
-        Generate Share Card
-      </Button>
+        <Appbar.BackAction
+          onPress={() => router.back()}
+          color={theme.colors.onSurface}
+        />
+        <Appbar.Content
+          title="Practice Stats"
+          titleStyle={{ color: theme.colors.onSurface, fontWeight: "bold" }}
+        />
+      </Appbar.Header>
+
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text
+              variant="titleMedium"
+              style={[styles.cardTitle, { color: theme.colors.onSurface }]}
+            >
+              Overall Summary
+            </Text>
+            <StatItem label="Total Sessions" value={stats.totalSessions} />
+            <StatItem
+              label="Total Techniques Practiced"
+              value={stats.allTechniquesPracticedCount}
+            />
+            <StatItem
+              label="Unique Techniques Practiced"
+              value={stats.uniqueTechniquesPracticedCount}
+            />
+            <StatItem label="Total Technique Views" value={stats.totalViews} />
+            <StatItem label="Total Flag Events" value={stats.totalFlagEvents} />
+            <StatItem
+              label="Total Playlist Adds"
+              value={stats.totalPlaylistAdds}
+            />
+          </Card.Content>
+        </Card>
+
+        <TopList
+          title="Most Practiced Techniques"
+          items={stats.mostPracticed}
+          icon="sword-cross"
+        />
+        <TopList
+          title="Most Viewed Techniques"
+          items={stats.mostViewed}
+          icon="eye-outline"
+        />
+        <TopList
+          title="Most Flagged Techniques"
+          items={stats.mostFlagged}
+          icon="flag-variant-outline"
+        />
+        <TopList
+          title="Most Added to Playlists"
+          items={stats.mostPlaylisted}
+          icon="playlist-plus"
+        />
+
+        <Card style={styles.card}>
+          <Card.Content>
+            <Text
+              variant="titleMedium"
+              style={[styles.cardTitle, { color: theme.colors.onSurface }]}
+            >
+              Achievements ({stats.earnedAchievements.length}/
+              {ACHIEVEMENTS.length})
+            </Text>
+            <View style={styles.achievementsContainer}>
+              {ACHIEVEMENTS.map((ach) => {
+                const earnedIt = stats.earnedAchievements.includes(ach.id);
+                return (
+                  <Chip
+                    key={ach.id}
+                    icon={earnedIt ? "star-circle" : "lock-outline"}
+                    mode={earnedIt ? "flat" : "outlined"}
+                    style={[
+                      styles.achievementChip,
+                      earnedIt && {
+                        backgroundColor: theme.colors.primaryContainer,
+                      },
+                      !earnedIt && {
+                        borderColor: theme.colors.outlineVariant,
+                      },
+                    ]}
+                    textStyle={{
+                      color: earnedIt
+                        ? theme.colors.onPrimaryContainer
+                        : theme.colors.onSurfaceDisabled,
+                    }}
+                    onPress={() => setSelectedAchievement(ach)}
+                  >
+                    {ach.label}
+                  </Chip>
+                );
+              })}
+            </View>
+          </Card.Content>
+        </Card>
+
+        <Button
+          mode="contained"
+          style={styles.shareButton}
+          icon="share-variant"
+          onPress={() => router.push("/share")}
+          labelStyle={{ fontWeight: "bold" }}
+        >
+          Generate Share Card
+        </Button>
+      </ScrollView>
 
       <Portal>
         <Dialog
           visible={!!selectedAchievement}
           onDismiss={() => setSelectedAchievement(null)}
+          style={{ backgroundColor: theme.colors.elevation.level3 }}
         >
-          <Dialog.Title>{selectedAchievement?.label}</Dialog.Title>
+          <Dialog.Title style={{ color: theme.colors.onSurface }}>
+            {selectedAchievement?.label}
+          </Dialog.Title>
           <Dialog.Content>
-            <Text>{selectedAchievement?.description}</Text>
+            <Text style={{ color: theme.colors.onSurfaceVariant }}>
+              {selectedAchievement?.description}
+            </Text>
           </Dialog.Content>
           <Dialog.Actions>
-            <Button onPress={() => setSelectedAchievement(null)}>Close</Button>
+            <Button
+              onPress={() => setSelectedAchievement(null)}
+              textColor={theme.colors.primary}
+            >
+              Close
+            </Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: 20, flexGrow: 1 },
-  header: { marginBottom: 16 },
-  divider: { marginVertical: 12, opacity: 0.3 },
-  achievements: {
+  pageContainer: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  scrollContainer: {
+    padding: 16,
+    flexGrow: 1,
+  },
+  card: {
+    marginBottom: 16,
+    elevation: 2,
+  },
+  cardTitle: {
+    marginBottom: 12,
+    fontWeight: "bold",
+  },
+  statItemContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  statLabel: {
+    // fontWeight: '500',
+  },
+  statValue: {
+    fontWeight: "bold",
+  },
+  subHeader: {
+    fontWeight: "bold",
+    fontSize: 16,
+  },
+  emptyListText: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    opacity: 0.7,
+    textAlign: "center",
+  },
+  achievementsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    gap: 10,
   },
   achievementChip: {
-    alignSelf: "flex-start",
+    // No specific style needed here if using theme colors directly
+  },
+  shareButton: {
+    marginTop: 8,
+    marginBottom: 16, // Ensure space at the bottom
+    paddingVertical: 6,
   },
 });

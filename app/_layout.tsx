@@ -8,7 +8,7 @@ import { View, StyleSheet } from "react-native";
 import { useAnonymousAuth } from "@/hooks/useAnonAuth";
 
 export default function RootLayout() {
-  const { user, initializing, error } = useAnonymousAuth();
+  const { initializing, error } = useAnonymousAuth();
   if (error) {
     console.error("Error signing in anonymously:", error);
   }

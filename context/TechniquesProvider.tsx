@@ -1,10 +1,4 @@
-import React, {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  useCallback,
-} from "react";
+import React, { createContext, useContext, useEffect, useState } from "react";
 import * as FileSystem from "expo-file-system";
 import { Technique } from "@/types/Technique";
 import { logFlagEvent } from "@/utils/flagLogger";
