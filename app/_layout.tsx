@@ -8,7 +8,8 @@ import { View, StyleSheet } from "react-native";
 import { useAnonymousAuth } from "@/hooks/useAnonAuth";
 
 export default function RootLayout() {
-  useAnonymousAuth();
+  const { user, initializing, error } = useAnonymousAuth();
+  if (initializing) return null;
   return (
     <SafeAreaProvider>
       <PaperProvider theme={MD3DarkTheme}>
