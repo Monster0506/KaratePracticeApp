@@ -15,7 +15,6 @@ export const useAnonymousAuth = () => {
         try {
           const result = await auth().signInAnonymously();
           setUser(result.user);
-          console.log("Anonymous user signed in:", result.user.uid);
         } catch (err: any) {
           setError(err);
         } finally {

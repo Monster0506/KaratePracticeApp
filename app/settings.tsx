@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import {
   Button,
@@ -12,54 +12,86 @@ import {
 } from "react-native-paper";
 import { useRouter } from "expo-router";
 import * as Notifications from "expo-notifications";
-import * as Permissions from "expo-notifications";
-import { useTechniques } from "@/context/TechniquesProvider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect } from "react";
+
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  getDoc,
+} from "@react-native-firebase/firestore";
+import { getApp } from "@react-native-firebase/app";
+import { useTechniques } from "@/context/TechniquesProvider";
+import { useAnonymousAuth } from "@/hooks/useAnonAuth";
 
 export default function SettingsScreen() {
   const { refreshData, loading } = useTechniques();
   const router = useRouter();
   const theme = useTheme();
+  const { user, initializing } = useAnonymousAuth();
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const [reminderHour, setReminderHour] = useState("18");
   const [reminderMinute, setReminderMinute] = useState("00");
   const [username, setUsername] = useState("Karateka");
-  const [delayMs, setDelayMs] = useState("4000"); // default to 4s
+  const [delayMs, setDelayMs] = useState("4000");
+  const [hourMenuVisible, setHourMenuVisible] = useState(false);
+  const [minuteMenuVisible, setMinuteMenuVisible] = useState(false);
 
   useEffect(() => {
     const loadSettings = async () => {
       const storedDelay = await AsyncStorage.getItem("delayBetweenTechniques");
-      const storedName = await AsyncStorage.getItem("username");
       if (storedDelay) setDelayMs(storedDelay);
-      if (storedName) setUsername(storedName);
+
+      if (user?.uid) {
+        const app = getApp();
+        const db = getFirestore(app);
+        const userRef = doc(db, "users", user.uid);
+        const snapshot = await getDoc(userRef);
+        const data = snapshot.data();
+        if (data?.username) setUsername(data.username);
+      }
     };
     loadSettings();
-  }, []);
+  }, [user]);
+
+  const commitUsername = async () => {
+    const clean = username.trim() || "Karateka";
+    setUsername(clean); // Optional: snap to clean value
+
+    if (user?.uid) {
+      try {
+        const app = getApp();
+        const db = getFirestore(app);
+
+        const userDocRef = doc(collection(db, "users"), user.uid);
+        await setDoc(userDocRef, { username: clean }, { merge: true });
+      } catch (err) {
+        console.error("Firestore error:", err);
+      }
+    }
+  };
+
+  const saveUsername = async (val: string) => {
+    setUsername(val);
+  };
 
   const saveDelay = async (value: string) => {
     setDelayMs(value);
     await AsyncStorage.setItem("delayBetweenTechniques", value);
   };
 
-  const saveUsername = async (value: string) => {
-    setUsername(value);
-    await AsyncStorage.setItem("username", value.trim() || "Karateka");
+  const loadReminderTime = async () => {
+    const hour = await AsyncStorage.getItem("reminderHour");
+    const minute = await AsyncStorage.getItem("reminderMinute");
+    if (hour) setReminderHour(hour);
+    if (minute) setReminderMinute(minute);
   };
 
   useEffect(() => {
-    const loadStoredTime = async () => {
-      const hour = await AsyncStorage.getItem("reminderHour");
-      const minute = await AsyncStorage.getItem("reminderMinute");
-      if (hour) setReminderHour(hour);
-      if (minute) setReminderMinute(minute);
-    };
-    loadStoredTime();
+    loadReminderTime();
   }, []);
-
-  const [hourMenuVisible, setHourMenuVisible] = useState(false);
-  const [minuteMenuVisible, setMinuteMenuVisible] = useState(false);
 
   const hourOptions = Array.from({ length: 24 }, (_, i) =>
     i.toString().padStart(2, "0"),
@@ -83,7 +115,6 @@ export default function SettingsScreen() {
     await AsyncStorage.setItem("reminderMinute", reminderMinute);
 
     await Notifications.cancelAllScheduledNotificationsAsync();
-
     await Notifications.scheduleNotificationAsync({
       content: {
         title: "Karate Practice",
@@ -99,6 +130,8 @@ export default function SettingsScreen() {
 
     setDialogVisible(false);
   };
+
+  if (initializing) return <ActivityIndicator />;
 
   return (
     <View
@@ -138,8 +171,10 @@ export default function SettingsScreen() {
         label="Username"
         value={username}
         onChangeText={saveUsername}
+        onBlur={commitUsername}
         mode="outlined"
       />
+
       <Button
         mode="outlined"
         onPress={() => router.back()}
@@ -156,7 +191,6 @@ export default function SettingsScreen() {
           <Dialog.Title>Select Reminder Time</Dialog.Title>
           <Dialog.Content>
             <View style={styles.pickerRow}>
-              {/* Hour Picker */}
               <View style={styles.picker}>
                 <Text variant="labelLarge">Hour</Text>
                 <Menu
@@ -185,7 +219,6 @@ export default function SettingsScreen() {
                 </Menu>
               </View>
 
-              {/* Minute Picker */}
               <View style={styles.picker}>
                 <Text variant="labelLarge">Minute</Text>
                 <Menu

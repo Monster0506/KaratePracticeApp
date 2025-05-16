@@ -1,27 +1,51 @@
-// utils/flagLogger.ts
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { FlagEvent } from "@/types/Events";
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+} from "@react-native-firebase/firestore";
+import { getApp } from "@react-native-firebase/app";
+import { getAuth } from "@react-native-firebase/auth";
 
-export interface FlagEvent {
-  type: "flag" | "unflag" | "playlist-add" | "playlist-remove";
-  technique: string;
-  playlist?: string; // optional for playlist events
-  timestamp?: string;
-}
+const getFlagDocRef = (uid: string) => {
+  const db = getFirestore(getApp());
+  return doc(db, "users", uid);
+};
 
-const FLAG_LOG_KEY = "flag-events-log";
+export const logFlagEvent = async (event: Omit<FlagEvent, "timestamp">) => {
+  const user = getAuth().currentUser;
+  if (!user) return;
 
-export const logFlagEvent = async (event: FlagEvent) => {
-  const existing = await AsyncStorage.getItem(FLAG_LOG_KEY);
-  const parsed: FlagEvent[] = existing ? JSON.parse(existing) : [];
-  parsed.push({ ...event, timestamp: new Date().toISOString() });
-  await AsyncStorage.setItem(FLAG_LOG_KEY, JSON.stringify(parsed));
+  const docRef = getFlagDocRef(user.uid);
+  const snap = await getDoc(docRef);
+  const existing: FlagEvent[] = snap.exists()
+    ? snap.data()?.flagEvents || []
+    : [];
+
+  const timestamped = {
+    ...event,
+    timestamp: new Date().toISOString(),
+  };
+
+  await setDoc(
+    docRef,
+    { flagEvents: [...existing, timestamped] },
+    { merge: true },
+  );
 };
 
 export const getFlagEvents = async (): Promise<FlagEvent[]> => {
-  const stored = await AsyncStorage.getItem(FLAG_LOG_KEY);
-  return stored ? JSON.parse(stored) : [];
+  const user = getAuth().currentUser;
+  if (!user) return [];
+
+  const snap = await getDoc(getFlagDocRef(user.uid));
+  return snap.exists() && snap.data()?.flagEvents ? snap.data().flagEvents : [];
 };
 
 export const clearFlagEvents = async () => {
-  await AsyncStorage.removeItem(FLAG_LOG_KEY);
+  const user = getAuth().currentUser;
+  if (!user) return;
+
+  await setDoc(getFlagDocRef(user.uid), { flagEvents: [] }, { merge: true });
 };

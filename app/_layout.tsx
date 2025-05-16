@@ -9,8 +9,10 @@ import { useAnonymousAuth } from "@/hooks/useAnonAuth";
 
 export default function RootLayout() {
   const { user, initializing, error } = useAnonymousAuth();
+  if (error) {
+    console.error("Error signing in anonymously:", error);
+  }
   if (initializing) return null;
-  console.log("User:", user);
   return (
     <SafeAreaProvider>
       <PaperProvider theme={MD3DarkTheme}>

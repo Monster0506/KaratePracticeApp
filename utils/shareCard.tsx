@@ -3,7 +3,6 @@ import { View, StyleSheet } from "react-native";
 import { Text, Chip, Dialog, Portal, Button } from "react-native-paper";
 import { ACHIEVEMENTS } from "@/utils/achievement"; // Assuming ACHIEVEMENTS is in a constants file
 import QRBlock from "@/components/QRBlock";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 interface Props {
   username?: string;
   sessions: number;

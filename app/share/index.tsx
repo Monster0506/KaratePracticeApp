@@ -5,11 +5,14 @@ import { Share } from "react-native";
 import ViewShot from "react-native-view-shot";
 import * as FileSystem from "expo-file-system";
 import { ShareCard } from "@/utils/shareCard";
-import { ACHIEVEMENTS, getAchievements } from "@/utils/achievement";
+import { getAchievements } from "@/utils/achievement";
 import { getPracticeHistory } from "@/utils/practiceLogger";
 import { getTechniqueViews } from "@/utils/viewLogger";
 import { useTechniques } from "@/context/TechniquesProvider";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import { getApp } from "@react-native-firebase/app";
+import { getFirestore, doc, getDoc } from "@react-native-firebase/firestore";
+import { useAnonymousAuth } from "@/hooks/useAnonAuth";
 import { useLocalSearchParams } from "expo-router";
 
 export default function ShareScreen() {
@@ -24,6 +27,8 @@ export default function ShareScreen() {
   }>();
 
   const [username, setUsername] = useState("Karateka");
+
+  const { user } = useAnonymousAuth();
   const [data, setData] = useState({
     sessions: 0,
     techniques: 0,
@@ -42,8 +47,14 @@ export default function ShareScreen() {
     } else {
       // Otherwise, load local data
       (async () => {
-        const stored = await AsyncStorage.getItem("username");
-        if (stored) setUsername(stored);
+        if (user?.uid) {
+          const app = getApp();
+          const db = getFirestore(app);
+          const userRef = doc(db, "users", user.uid);
+          const snapshot = await getDoc(userRef);
+          const data = snapshot.data();
+          if (data?.username) setUsername(data.username);
+        }
 
         const hist = await getPracticeHistory();
         const views = await getTechniqueViews();

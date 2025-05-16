@@ -6,13 +6,19 @@ import React, {
   useCallback,
 } from "react";
 import * as FileSystem from "expo-file-system";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Technique } from "@/types/Technique";
 import { logFlagEvent } from "@/utils/flagLogger";
 const DOWNLOAD_URL = "https://karateapp.monster0506.dev/data/techniques.json";
 const LOCAL_JSON_PATH = `${FileSystem.documentDirectory}techniques.json`;
-const FLAG_KEY = "flagged-techniques";
-const PLAYLIST_KEY = "playlists";
+
+import {
+  getFirestore,
+  doc,
+  getDoc,
+  setDoc,
+} from "@react-native-firebase/firestore";
+import { getApp } from "@react-native-firebase/app";
+import { useAnonymousAuth } from "@/hooks/useAnonAuth";
 
 interface Playlist {
   name: string;
@@ -56,6 +62,8 @@ export const TechniquesProvider: React.FC<{ children: React.ReactNode }> = ({
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [currentList, setCurrentList] = useState<Technique[]>([]);
 
+  // if (initializing) return null;
+
   // ---------- helpers ----------
   const loadLocalJson = async () => {
     const info = await FileSystem.getInfoAsync(LOCAL_JSON_PATH);
@@ -68,17 +76,7 @@ export const TechniquesProvider: React.FC<{ children: React.ReactNode }> = ({
     await FileSystem.downloadAsync(DOWNLOAD_URL, LOCAL_JSON_PATH);
   };
 
-  const loadFlags = async () => {
-    const stored = await AsyncStorage.getItem(FLAG_KEY);
-    if (stored) setFlagged(JSON.parse(stored));
-  };
-
-  const loadPlaylists = async () => {
-    const stored = await AsyncStorage.getItem(PLAYLIST_KEY);
-    if (stored) setPlaylists(JSON.parse(stored));
-  };
-
-  // ---------- startup ----------
+  // load techniques
   useEffect(() => {
     (async () => {
       try {
@@ -94,14 +92,46 @@ export const TechniquesProvider: React.FC<{ children: React.ReactNode }> = ({
         setLoading(false);
       }
     })();
-    loadFlags();
-    loadPlaylists();
   }, []);
 
-  // ---------- actions ----------
+  const { user } = useAnonymousAuth();
+
+  // load user data
+  useEffect(() => {
+    if (!user) return;
+    const loadFromFirestore = async () => {
+      const db = getFirestore(getApp());
+      const ref = doc(db, "users", user.uid);
+      const snap = await getDoc(ref);
+
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data?.flagged) setFlagged(data.flagged);
+        if (data?.playlists) setPlaylists(data.playlists);
+      }
+    };
+
+    loadFromFirestore();
+  }, [user]);
+
+  const persistToFirestore = async (
+    updates: Partial<{ flagged: string[]; playlists: Playlist[] }>,
+  ) => {
+    if (!user) return;
+
+    const db = getFirestore(getApp());
+    const ref = doc(db, "users", user.uid);
+    await setDoc(ref, updates, { merge: true });
+  };
+
   const persistFlags = async (next: string[]) => {
     setFlagged(next);
-    await AsyncStorage.setItem(FLAG_KEY, JSON.stringify(next));
+    persistToFirestore({ flagged: next });
+  };
+
+  const persistPlaylists = async (pl: Playlist[]) => {
+    setPlaylists(pl);
+    persistToFirestore({ playlists: pl });
   };
 
   const toggleFlag = (id: string) => {
@@ -115,11 +145,6 @@ export const TechniquesProvider: React.FC<{ children: React.ReactNode }> = ({
     });
     persistFlags(next);
   };
-  const persistPlaylists = async (pl: Playlist[]) => {
-    setPlaylists(pl);
-    await AsyncStorage.setItem(PLAYLIST_KEY, JSON.stringify(pl));
-  };
-
   const createPlaylist = (name: string) => {
     if (playlists.find((p) => p.name === name)) return;
     persistPlaylists([...playlists, { name, ids: [] }]);
