@@ -39,3 +39,10 @@ yarn-error.*
 app-example
 android/
 ios/
+
+# Sensitive credentials - DO NOT COMMIT
+karateapp-*.json
+google-services.json
+GoogleService-Info.plist
+*.keystore
+*.jks

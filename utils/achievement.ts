@@ -1,4 +1,4 @@
-import { PracticeSession } from "@/utils/practiceLogger";
+import { PracticeSession } from "@/types/Events";
 
 /** badge definitions */
 const ACHIEVEMENT_DESCRIPTIONS: Record<string, string> = {

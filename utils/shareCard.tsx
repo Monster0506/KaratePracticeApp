@@ -1,28 +1,28 @@
 import { forwardRef, useState } from "react";
 import { View, StyleSheet } from "react-native";
 import { Text, Chip, Dialog, Portal, Button } from "react-native-paper";
-import { ACHIEVEMENTS } from "@/utils/achievement"; // Assuming ACHIEVEMENTS is in a constants file
+import { ACHIEVEMENTS } from "@/utils/achievement";
 import QRBlock from "@/components/QRBlock";
+
 interface Props {
+  uid: string;
   username?: string;
   sessions: number;
   techniques: number;
-  earned: string[]; // Assuming earned is an array of achievement IDs
+  earned: string[];
 }
 
 export const ShareCard = forwardRef<View, Props>(
-  ({ username = "Karateka", sessions, techniques, earned }, ref) => {
-    const query = new URLSearchParams({
-      u: username,
-      s: String(sessions),
-      t: String(techniques),
-      e: String(earned.join(",")),
-    }).toString();
-
+  ({ uid, username = "Karateka", sessions, techniques, earned }, ref) => {
+    console.log(uid, username, sessions, techniques, earned);
     const [selectedAchievement, setSelectedAchievement] = useState<
       null | (typeof ACHIEVEMENTS)[number]
     >(null);
-    const qrPayload = `https://karateapp.monster0506.dev/?${query}`;
+
+    const qrPayload = `https://karateapp.monster0506.dev/?u=${encodeURIComponent(
+      uid,
+    )}`;
+
     return (
       <View ref={ref} style={styles.card}>
         <Text variant="titleLarge">{username}'s Progress</Text>
