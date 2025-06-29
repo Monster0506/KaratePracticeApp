@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "karateapp",
-    "deepLinking": true,
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -24,7 +23,10 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.monster0506.KarateApp",
-      "permissions": ["CAMERA", "NOTIFICATIONS"]
+      "permissions": [
+        "CAMERA",
+        "NOTIFICATIONS"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -66,7 +68,9 @@
           "color": "#ffffff",
           "iosDisplayInForeground": true
         }
-      ]
+      ],
+      "expo-build-properties",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true

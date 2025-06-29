@@ -1,33 +1,32 @@
-import React, { useState, useEffect, useCallback } from "react";
-import { View, StyleSheet, ScrollView } from "react-native";
-import {
-  Button,
-  Text,
-  ActivityIndicator,
-  Dialog,
-  TextInput,
-  Portal,
-  useTheme,
-  Menu,
-  Appbar, // Added
-  Card, // Added
-  List, // Added
-  Divider, // Added
-  Snackbar, // For feedback
-} from "react-native-paper";
-import { useRouter } from "expo-router";
-import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-
+import * as Notifications from "expo-notifications";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
 import {
-  getFirestore,
-  doc,
-  setDoc,
-  getDoc,
-} from "@react-native-firebase/firestore"; // Removed unused 'collection'
-import { getApp } from "@react-native-firebase/app"; // Ensure app is initialized
+    ActivityIndicator,
+    Appbar,
+    Button,
+    Card,
+    Dialog,
+    Divider,
+    List,
+    Portal,
+    Snackbar,
+    Text,
+    TextInput,
+    useTheme
+} from "react-native-paper";
+
 import { useTechniques } from "@/context/TechniquesProvider";
 import { useAnonymousAuth } from "@/hooks/useAnonAuth";
+import { getApp } from "@react-native-firebase/app"; // Ensure app is initialized
+import {
+    doc,
+    getDoc,
+    getFirestore,
+    setDoc,
+} from "@react-native-firebase/firestore"; // Removed unused 'collection'
 
 export default function SettingsScreen() {
   const { refreshData, loading: techniquesLoading } = useTechniques();
@@ -45,11 +44,9 @@ export default function SettingsScreen() {
 
   const [delayMs, setDelayMs] = useState("4000");
 
-  const [hourMenuVisible, setHourMenuVisible] = useState(false);
-  const [minuteMenuVisible, setMinuteMenuVisible] = useState(false);
-
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [pickerType, setPickerType] = useState<"hour" | "minute" | null>(null);
 
   const showSnackbar = (message: string) => {
     setSnackbarMessage(message);
@@ -152,11 +149,15 @@ export default function SettingsScreen() {
   );
 
   const scheduleReminder = async () => {
+    console.log(`[TimePicker] Scheduling reminder for ${reminderHour}:${reminderMinute}`);
+    
     const { status } = await Notifications.getPermissionsAsync();
     if (status !== "granted") {
+      console.log("[TimePicker] Requesting notification permissions");
       const { status: newStatus } =
         await Notifications.requestPermissionsAsync();
       if (newStatus !== "granted") {
+        console.log("[TimePicker] Notification permission denied");
         showSnackbar("Notification permission is required.");
         return;
       }
@@ -168,6 +169,7 @@ export default function SettingsScreen() {
 
     await Notifications.cancelAllScheduledNotificationsAsync(); // Cancel previous
     try {
+      console.log(`[TimePicker] Creating notification for ${reminderHour}:${reminderMinute}`);
       await Notifications.scheduleNotificationAsync({
         content: {
           title: "🥋 Karate Practice Time!",
@@ -180,9 +182,10 @@ export default function SettingsScreen() {
           repeats: true, // Daily
         },
       });
+      console.log(`[TimePicker] Successfully scheduled reminder for ${reminderHour}:${reminderMinute}`);
       showSnackbar(`Reminder set for ${reminderHour}:${reminderMinute} daily.`);
     } catch (e) {
-      console.error("Failed to schedule notification", e);
+      console.error("[TimePicker] Failed to schedule notification", e);
       showSnackbar("Failed to set reminder.");
       setIsReminderSet(false); // Revert state if failed
     }
@@ -190,10 +193,12 @@ export default function SettingsScreen() {
   };
 
   const cancelReminders = async () => {
+    console.log("[TimePicker] Cancelling all reminders");
     await Notifications.cancelAllScheduledNotificationsAsync();
     await AsyncStorage.removeItem("reminderHour");
     await AsyncStorage.removeItem("reminderMinute");
     setIsReminderSet(false);
+    console.log("[TimePicker] All reminders cancelled successfully");
     showSnackbar("All reminders cancelled.");
   };
 
@@ -255,7 +260,7 @@ export default function SettingsScreen() {
               disabled={usernameLoading || !user}
               right={
                 usernameLoading ? (
-                  <TextInput.Affix text={<ActivityIndicator size="small" />} />
+                  <ActivityIndicator size="small" />
                 ) : null
               }
             />
@@ -285,7 +290,10 @@ export default function SettingsScreen() {
                   icon={isReminderSet ? "bell-ring" : "bell-outline"}
                 />
               )}
-              onPress={() => setReminderDialogVisible(true)}
+              onPress={() => {
+                console.log("[TimePicker] Opening reminder dialog");
+                setReminderDialogVisible(true);
+              }}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
               style={styles.listItem}
               titleStyle={{ color: theme.colors.onSurfaceVariant }}
@@ -351,15 +359,19 @@ export default function SettingsScreen() {
           </Card.Content>
         </Card>
       </ScrollView>
-
+      
+      {/* Main Reminder Dialog - rendered first */}
       <Portal>
         <Dialog
           visible={reminderDialogVisible}
-          onDismiss={() => setReminderDialogVisible(false)}
+          onDismiss={() => {
+            console.log("[TimePicker] Reminder dialog dismissed");
+            setReminderDialogVisible(false);
+          }}
           style={{ backgroundColor: theme.colors.elevation.level3 }}
         >
           <Dialog.Title style={{ color: theme.colors.onSurface }}>
-            Select Reminder Time
+            Set Daily Reminder Time
           </Dialog.Title>
           <Dialog.Content>
             <View style={styles.pickerRow}>
@@ -373,32 +385,17 @@ export default function SettingsScreen() {
                 >
                   Hour
                 </Text>
-                <Menu
-                  visible={hourMenuVisible}
-                  onDismiss={() => setHourMenuVisible(false)}
-                  anchor={
-                    <Button
-                      mode="outlined"
-                      onPress={() => setHourMenuVisible(true)}
-                      style={styles.pickerButton}
-                      contentStyle={styles.pickerButtonContent}
-                    >
-                      {reminderHour}
-                    </Button>
-                  }
-                  style={{ maxHeight: 200 }} // Allow menu to scroll
+                <Button
+                  mode="outlined"
+                  onPress={() => {
+                    console.log(`[TimePicker] Opening hour picker, current: ${reminderHour}`);
+                    setPickerType("hour");
+                  }}
+                  style={styles.pickerButton}
+                  contentStyle={styles.pickerButtonContent}
                 >
-                  {hourOptions.map((hour) => (
-                    <Menu.Item
-                      key={hour}
-                      title={hour}
-                      onPress={() => {
-                        setReminderHour(hour);
-                        setHourMenuVisible(false);
-                      }}
-                    />
-                  ))}
-                </Menu>
+                  {reminderHour}
+                </Button>
               </View>
               <Text style={styles.timeSeparator}>:</Text>
               <View style={styles.pickerColumn}>
@@ -411,32 +408,17 @@ export default function SettingsScreen() {
                 >
                   Minute
                 </Text>
-                <Menu
-                  visible={minuteMenuVisible}
-                  onDismiss={() => setMinuteMenuVisible(false)}
-                  anchor={
-                    <Button
-                      mode="outlined"
-                      onPress={() => setMinuteMenuVisible(true)}
-                      style={styles.pickerButton}
-                      contentStyle={styles.pickerButtonContent}
-                    >
-                      {reminderMinute}
-                    </Button>
-                  }
-                  style={{ maxHeight: 200 }} // Allow menu to scroll
+                <Button
+                  mode="outlined"
+                  onPress={() => {
+                    console.log(`[TimePicker] Opening minute picker, current: ${reminderMinute}`);
+                    setPickerType("minute");
+                  }}
+                  style={styles.pickerButton}
+                  contentStyle={styles.pickerButtonContent}
                 >
-                  {minuteOptions.map((min) => (
-                    <Menu.Item
-                      key={min}
-                      title={min}
-                      onPress={() => {
-                        setReminderMinute(min);
-                        setMinuteMenuVisible(false);
-                      }}
-                    />
-                  ))}
-                </Menu>
+                  {reminderMinute}
+                </Button>
               </View>
             </View>
           </Dialog.Content>
@@ -453,6 +435,51 @@ export default function SettingsScreen() {
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      {/* Hour/Minute Selection Dialog - rendered second to appear on top */}
+      <Portal>
+        <Dialog
+          visible={pickerType !== null}
+          onDismiss={() => {
+            console.log(`[TimePicker] ${pickerType} picker dialog dismissed`);
+            setPickerType(null);
+          }}
+          style={{ 
+            backgroundColor: theme.colors.elevation.level3,
+            zIndex: 1000 // Ensure it appears above other dialogs
+          }}
+        >
+          <Dialog.Title style={{ color: theme.colors.onSurface }}>
+            Select {pickerType === "hour" ? "Hour" : "Minute"}
+          </Dialog.Title>
+          <Dialog.ScrollArea style={{ maxHeight: 300, paddingHorizontal: 0 }}>
+            <ScrollView>
+              {(pickerType === "hour" ? hourOptions : minuteOptions).map(
+                (opt) => (
+                  <List.Item
+                    key={opt}
+                    title={opt}
+                    onPress={() => {
+                      if (pickerType === "hour") {
+                        console.log(`[TimePicker] Hour selected: ${opt} (was: ${reminderHour})`);
+                        setReminderHour(opt);
+                      } else {
+                        console.log(`[TimePicker] Minute selected: ${opt} (was: ${reminderMinute})`);
+                        setReminderMinute(opt);
+                      }
+                      setPickerType(null);
+                    }}
+                  />
+                ),
+              )}
+            </ScrollView>
+          </Dialog.ScrollArea>
+          <Dialog.Actions>
+            <Button onPress={() => setPickerType(null)}>Cancel</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
+
       <Snackbar
         visible={snackbarVisible}
         onDismiss={() => setSnackbarVisible(false)}
