@@ -4,29 +4,30 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { ScrollView, StyleSheet, View } from "react-native";
 import {
-    ActivityIndicator,
-    Appbar,
-    Button,
-    Card,
-    Dialog,
-    Divider,
-    List,
-    Portal,
-    Snackbar,
-    Text,
-    TextInput,
-    useTheme
+  ActivityIndicator,
+  Appbar,
+  Button,
+  Card,
+  Dialog,
+  Divider,
+  List,
+  Portal,
+  Snackbar,
+  Text,
+  TextInput,
+  useTheme
 } from "react-native-paper";
 
 import { useTechniques } from "@/context/TechniquesProvider";
 import { useAnonymousAuth } from "@/hooks/useAnonAuth";
 import { getApp } from "@react-native-firebase/app"; // Ensure app is initialized
 import {
-    doc,
-    getDoc,
-    getFirestore,
-    setDoc,
+  doc,
+  getDoc,
+  getFirestore,
+  setDoc,
 } from "@react-native-firebase/firestore"; // Removed unused 'collection'
+import { getRandomQuote } from "../utils/achievement";
 
 export default function SettingsScreen() {
   const { refreshData, loading: techniquesLoading } = useTechniques();
@@ -149,15 +150,13 @@ export default function SettingsScreen() {
   );
 
   const scheduleReminder = async () => {
-    console.log(`[TimePicker] Scheduling reminder for ${reminderHour}:${reminderMinute}`);
     
     const { status } = await Notifications.getPermissionsAsync();
+    
     if (status !== "granted") {
-      console.log("[TimePicker] Requesting notification permissions");
       const { status: newStatus } =
         await Notifications.requestPermissionsAsync();
       if (newStatus !== "granted") {
-        console.log("[TimePicker] Notification permission denied");
         showSnackbar("Notification permission is required.");
         return;
       }
@@ -169,23 +168,23 @@ export default function SettingsScreen() {
 
     await Notifications.cancelAllScheduledNotificationsAsync(); // Cancel previous
     try {
-      console.log(`[TimePicker] Creating notification for ${reminderHour}:${reminderMinute}`);
-      await Notifications.scheduleNotificationAsync({
+      
+      // Schedule the daily reminder
+      const notificationId = await Notifications.scheduleNotificationAsync({
         content: {
           title: "🥋 Karate Practice Time!",
-          body: "Ready to train? Let's go!",
-          sound: "default", // Add sound
+          body: getRandomQuote(),
+          sound: "default",
         },
         trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
           hour: parseInt(reminderHour, 10),
           minute: parseInt(reminderMinute, 10),
-          repeats: true, // Daily
         },
       });
-      console.log(`[TimePicker] Successfully scheduled reminder for ${reminderHour}:${reminderMinute}`);
+      
       showSnackbar(`Reminder set for ${reminderHour}:${reminderMinute} daily.`);
     } catch (e) {
-      console.error("[TimePicker] Failed to schedule notification", e);
       showSnackbar("Failed to set reminder.");
       setIsReminderSet(false); // Revert state if failed
     }
@@ -193,12 +192,10 @@ export default function SettingsScreen() {
   };
 
   const cancelReminders = async () => {
-    console.log("[TimePicker] Cancelling all reminders");
     await Notifications.cancelAllScheduledNotificationsAsync();
     await AsyncStorage.removeItem("reminderHour");
     await AsyncStorage.removeItem("reminderMinute");
     setIsReminderSet(false);
-    console.log("[TimePicker] All reminders cancelled successfully");
     showSnackbar("All reminders cancelled.");
   };
 
@@ -291,7 +288,6 @@ export default function SettingsScreen() {
                 />
               )}
               onPress={() => {
-                console.log("[TimePicker] Opening reminder dialog");
                 setReminderDialogVisible(true);
               }}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
@@ -365,7 +361,6 @@ export default function SettingsScreen() {
         <Dialog
           visible={reminderDialogVisible}
           onDismiss={() => {
-            console.log("[TimePicker] Reminder dialog dismissed");
             setReminderDialogVisible(false);
           }}
           style={{ backgroundColor: theme.colors.elevation.level3 }}
@@ -388,7 +383,6 @@ export default function SettingsScreen() {
                 <Button
                   mode="outlined"
                   onPress={() => {
-                    console.log(`[TimePicker] Opening hour picker, current: ${reminderHour}`);
                     setPickerType("hour");
                   }}
                   style={styles.pickerButton}
@@ -411,7 +405,6 @@ export default function SettingsScreen() {
                 <Button
                   mode="outlined"
                   onPress={() => {
-                    console.log(`[TimePicker] Opening minute picker, current: ${reminderMinute}`);
                     setPickerType("minute");
                   }}
                   style={styles.pickerButton}
@@ -441,7 +434,6 @@ export default function SettingsScreen() {
         <Dialog
           visible={pickerType !== null}
           onDismiss={() => {
-            console.log(`[TimePicker] ${pickerType} picker dialog dismissed`);
             setPickerType(null);
           }}
           style={{ 
@@ -461,10 +453,8 @@ export default function SettingsScreen() {
                     title={opt}
                     onPress={() => {
                       if (pickerType === "hour") {
-                        console.log(`[TimePicker] Hour selected: ${opt} (was: ${reminderHour})`);
                         setReminderHour(opt);
                       } else {
-                        console.log(`[TimePicker] Minute selected: ${opt} (was: ${reminderMinute})`);
                         setReminderMinute(opt);
                       }
                       setPickerType(null);
