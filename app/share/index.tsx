@@ -1,20 +1,18 @@
-import React, { useRef, useEffect, useState } from "react";
-import { View, StyleSheet } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Share, StyleSheet, View } from "react-native";
 import { Button, useTheme } from "react-native-paper";
-import { Share } from "react-native";
 // import Share from "react-native-share"; // Ensure react-native is used for Share
-import ViewShot from "react-native-view-shot"; // Default import for component and its type
-import { Alert } from "react-native";
-import * as FileSystem from "expo-file-system";
-import { ShareCard } from "@/utils/shareCard";
+import { useTechniques } from "@/context/TechniquesProvider";
 import { getAchievements } from "@/utils/achievement";
 import { getPracticeHistory } from "@/utils/practiceLogger";
+import { ShareCard } from "@/utils/shareCard";
 import { getTechniqueViews } from "@/utils/viewLogger";
-import { useTechniques } from "@/context/TechniquesProvider";
+import { Alert } from "react-native";
+import ViewShot from "react-native-view-shot"; // Default import for component and its type
 
-import { getApp } from "@react-native-firebase/app";
-import { getFirestore, doc, getDoc } from "@react-native-firebase/firestore";
 import { useAnonymousAuth } from "@/hooks/useAnonAuth";
+import { getApp } from "@react-native-firebase/app";
+import { doc, getDoc, getFirestore } from "@react-native-firebase/firestore";
 import { useLocalSearchParams } from "expo-router";
 
 // Assuming ShareContent and ShareOptions interfaces are available
@@ -56,7 +54,6 @@ export default function ShareScreen() {
           const userRef = doc(db, "users", user.uid);
           const snapshot = await getDoc(userRef);
           const userData = snapshot.data();
-          console.log("User data from Firestore:", userData);
           if (userData?.username) setUsername(userData.username);
         }
 
@@ -100,12 +97,8 @@ export default function ShareScreen() {
         dialogTitle: "Share this Karate App link",
       };
 
-      console.log("Attempting to share URL:", shareUrl);
-      console.log("Attempting to share with content:", shareContent);
-      console.log("Attempting to share with options:", shareOptions);
 
       const shareResponse = await Share.share(shareContent, shareOptions);
-      console.log("Share response:", shareResponse); // e.g., { action: 'sharedAction', activityType: ... } or { action: 'dismissedAction' }
     } catch (error: any) {
       console.error("Error during sharing process:", error);
       if (
@@ -113,7 +106,6 @@ export default function ShareScreen() {
         (error.message.includes("User dismissed") ||
           error.message.includes("User did not share"))
       ) {
-        console.log("User cancelled the share action.");
       } else {
         Alert.alert(
           "Share Error",
