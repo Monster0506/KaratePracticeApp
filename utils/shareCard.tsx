@@ -1,8 +1,8 @@
-import { forwardRef, useState } from "react";
-import { View, StyleSheet } from "react-native";
-import { Text, Chip, Dialog, Portal, Button } from "react-native-paper";
-import { ACHIEVEMENTS } from "@/utils/achievement";
 import QRBlock from "@/components/QRBlock";
+import { ACHIEVEMENTS } from "@/utils/achievement";
+import { forwardRef, useState } from "react";
+import { StyleSheet, View } from "react-native";
+import { Button, Chip, Dialog, Portal, Text } from "react-native-paper";
 
 interface Props {
   uid: string;
@@ -14,7 +14,6 @@ interface Props {
 
 export const ShareCard = forwardRef<View, Props>(
   ({ uid, username = "Karateka", sessions, techniques, earned }, ref) => {
-    console.log(uid, username, sessions, techniques, earned);
     const [selectedAchievement, setSelectedAchievement] = useState<
       null | (typeof ACHIEVEMENTS)[number]
     >(null);
