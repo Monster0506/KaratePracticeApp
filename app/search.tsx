@@ -11,9 +11,10 @@ import {
   Keyboard,
   LayoutAnimation,
   Platform,
+  ScrollView as RNScrollView,
   StyleSheet,
   UIManager,
-  View,
+  View
 } from "react-native";
 import {
   ActivityIndicator,
@@ -289,78 +290,82 @@ export default function SearchScreen() {
         </ModernCard>
 
         {filtersVisible && (
-          <ModernCard variant="elevated" padding="large" style={styles.filtersCard}>
-            <View style={styles.filtersHeader}>
-              <Text variant="titleMedium" style={styles.filtersTitle}>
-                Filters
-              </Text>
-              {totalActiveFilters > 0 && (
-                <ModernButton
-                  mode="text"
-                  onPress={clearAllFilters}
-                  compact
-                  style={styles.clearButton}
-                >
-                  Clear All
-                </ModernButton>
-              )}
-            </View>
+          <RNScrollView style={{ maxHeight: 1500 }} contentContainerStyle={{ paddingBottom: 16 }}>
+            <ModernCard variant="elevated" padding="large" style={styles.filtersCard}>
+              <View style={styles.filtersHeader}>
+                <Text variant="titleMedium" style={styles.filtersTitle}>
+                  Filters
+                </Text>
+                {totalActiveFilters > 0 && (
+                  <ModernButton
+                    mode="text"
+                    onPress={clearAllFilters}
+                    compact
+                    style={styles.clearButton}
+                  >
+                    Clear All
+                  </ModernButton>
+                )}
+              </View>
 
-            {FILTER_FIELDS.map((field) => (
-              <View key={field} style={styles.filterSection}>
-                <List.Accordion
-                  title={field}
-                  description={`${filters[field].length}/${uniqueFilterValues[field].length}`}
-                  left={(props) => <List.Icon {...props} icon="filter-variant" />}
-                  expanded={expandedAccordions.includes(field)}
-                  onPress={() => toggleAccordion(field)}
-                  style={styles.accordion}
-                >
-                  <View style={styles.filterOptions}>
-                    {uniqueFilterValues[field].map((value) => {
-                      if (field === 'Belt') {
-                        const beltKey = getBeltColor(value);
-                        const beltColor = BeltColors[beltKey]?.light || '#eee';
-                        const textColor = BeltTextColors[beltKey] || '#000';
+              {FILTER_FIELDS.map((field) => (
+                <View key={field} style={styles.filterSection}>
+                  <List.Accordion
+                    title={field}
+                    description={`${filters[field].length}/${uniqueFilterValues[field].length}`}
+                    left={(props) => <List.Icon {...props} icon="filter-variant" />}
+                    expanded={expandedAccordions.includes(field)}
+                    onPress={() => toggleAccordion(field)}
+                    style={styles.accordion}
+                  >
+                    <RNScrollView style={{ maxHeight: 1320 }} contentContainerStyle={styles.filterOptions}>
+                      {uniqueFilterValues[field].map((value) => {
+                        if (field === 'Belt') {
+                          const beltKey = getBeltColor(value);
+                          const beltColor = BeltColors[beltKey]?.light || '#eee';
+                          const textColor = BeltTextColors[beltKey] || '#000';
+                          return (
+                            <Chip
+                              key={value}
+                              selected={filters[field].includes(value)}
+                              onPress={() => toggleFilterOption(field, value)}
+                              style={[styles.filterChip, { backgroundColor: beltColor }]}
+                              textStyle={[styles.filterChipText, { color: textColor }]}
+                            >
+                              {value}
+                            </Chip>
+                          );
+                        }
                         return (
                           <Chip
                             key={value}
                             selected={filters[field].includes(value)}
                             onPress={() => toggleFilterOption(field, value)}
-                            style={[styles.filterChip, { backgroundColor: beltColor }]}
-                            textStyle={[styles.filterChipText, { color: textColor }]}
+                            style={styles.filterChip}
+                            textStyle={styles.filterChipText}
                           >
                             {value}
                           </Chip>
                         );
-                      }
-                      return (
-                        <Chip
-                          key={value}
-                          selected={filters[field].includes(value)}
-                          onPress={() => toggleFilterOption(field, value)}
-                          style={styles.filterChip}
-                          textStyle={styles.filterChipText}
-                        >
-                          {value}
-                        </Chip>
-                      );
-                    })}
-                  </View>
-                </List.Accordion>
-              </View>
-            ))}
-          </ModernCard>
+                      })}
+                    </RNScrollView>
+                  </List.Accordion>
+                </View>
+              ))}
+            </ModernCard>
+          </RNScrollView>
         )}
 
-        <FlatList
-          data={filteredTechniques}
-          renderItem={renderTechniqueItem}
-          keyExtractor={(item) => item.Name}
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={renderEmptyComponent}
-        />
+        {!filtersVisible && (
+          <FlatList
+            data={filteredTechniques}
+            renderItem={renderTechniqueItem}
+            keyExtractor={(item) => item.Name}
+            contentContainerStyle={styles.listContainer}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={renderEmptyComponent}
+          />
+        )}
       </View>
     </View>
   );
