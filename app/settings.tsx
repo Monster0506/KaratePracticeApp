@@ -397,17 +397,17 @@ export default function SettingsScreen() {
                 >
                   Hour
                 </Text>
-                <Button
-                  mode="outlined"
+                    <Button
+                      mode="outlined"
                   onPress={() => {
                     console.log(`[TimePicker] Opening hour picker, current: ${reminderHour}`);
                     setPickerType("hour");
                   }}
-                  style={styles.pickerButton}
-                  contentStyle={styles.pickerButtonContent}
-                >
-                  {reminderHour}
-                </Button>
+                      style={styles.pickerButton}
+                      contentStyle={styles.pickerButtonContent}
+                    >
+                      {reminderHour}
+                    </Button>
               </View>
               <Text style={styles.timeSeparator}>:</Text>
               <View style={styles.pickerColumn}>
@@ -420,17 +420,17 @@ export default function SettingsScreen() {
                 >
                   Minute
                 </Text>
-                <Button
-                  mode="outlined"
+                    <Button
+                      mode="outlined"
                   onPress={() => {
                     console.log(`[TimePicker] Opening minute picker, current: ${reminderMinute}`);
                     setPickerType("minute");
                   }}
-                  style={styles.pickerButton}
-                  contentStyle={styles.pickerButtonContent}
-                >
-                  {reminderMinute}
-                </Button>
+                      style={styles.pickerButton}
+                      contentStyle={styles.pickerButtonContent}
+                    >
+                      {reminderMinute}
+                    </Button>
               </View>
             </View>
           </Dialog.Content>

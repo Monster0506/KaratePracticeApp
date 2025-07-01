@@ -1,15 +1,15 @@
-import React, { useMemo, useState } from "react";
-import { View, ScrollView, StyleSheet } from "react-native";
-import {
-  Checkbox,
-  Button,
-  Text,
-  useTheme,
-  Appbar,
-  Divider,
-} from "react-native-paper";
 import { useTechniques } from "@/context/TechniquesProvider";
 import { useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
+import { ScrollView, StyleSheet, View } from "react-native";
+import {
+    Appbar,
+    Button,
+    Checkbox,
+    Divider,
+    Text,
+    useTheme,
+} from "react-native-paper";
 
 const beltColorMap: Record<string, string> = {
   Black: "#e2e2e2", // Dark text for Black belt (assuming light bg)

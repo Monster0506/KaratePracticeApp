@@ -1,31 +1,30 @@
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { ModernButton } from "@/components/ui/ModernButton";
+import { ModernCard } from "@/components/ui/ModernCard";
+import { ModernHeader } from "@/components/ui/ModernHeader";
+import { BeltColors, BeltTextColors, getBeltColor } from '@/constants/Colors';
+import { useTechniques } from "@/context/TechniquesProvider";
+import { useRouter } from "expo-router";
+import Fuse from "fuse.js";
+import React, { useCallback, useMemo, useState } from "react";
 import {
-  View,
-  StyleSheet,
+  FlatList,
+  Keyboard,
   LayoutAnimation,
   Platform,
+  StyleSheet,
   UIManager,
-  Keyboard,
-  FlatList,
+  View,
 } from "react-native";
 import {
-  TextInput,
+  ActivityIndicator,
+  Chip,
+  IconButton,
   List,
   Text,
-  Button,
-  Checkbox,
-  useTheme,
-  IconButton,
-  Appbar,
-  Card,
-  Divider,
-  ActivityIndicator,
+  TextInput,
+  useTheme
 } from "react-native-paper";
-import { useRouter } from "expo-router";
-import { useTechniques } from "@/context/TechniquesProvider";
-import Fuse from "fuse.js";
 import { useDebounce } from "use-debounce";
-import { ScrollView } from "react-native";
 
 if (Platform.OS === "android") {
   UIManager.setLayoutAnimationEnabledExperimental?.(true);
@@ -74,9 +73,18 @@ export default function SearchScreen() {
     };
     if (techniques && techniques.length > 0) {
       FILTER_FIELDS.forEach((field) => {
-        allValues[field] = Array.from(
+        let values = Array.from(
           new Set(techniques.map((t) => t[field]).filter(Boolean)),
-        ).sort();
+        );
+        if (field === 'Belt') {
+          // Sort belts by beltNumber
+          const beltOrder: Record<string, number> = {};
+          techniques.forEach((t) => (beltOrder[t.Belt] = t.beltNumber));
+          values = values.sort((a, b) => (beltOrder[a] ?? 0) - (beltOrder[b] ?? 0));
+        } else {
+          values = values.sort();
+        }
+        allValues[field] = values;
       });
     }
     return allValues;
@@ -170,66 +178,52 @@ export default function SearchScreen() {
 
   const renderTechniqueItem = useCallback(
     ({ item }: { item: TechniqueItem }) => (
-      <Card
-        style={[
-          styles.resultItemCard,
-          { backgroundColor: theme.colors.surface },
-        ]}
-        onPress={() =>
-          router.push(`/technique/${encodeURIComponent(item.Name)}`)
-        }
-        elevation={1} // Use a subtle elevation
+      <ModernCard
+        variant="elevated"
+        padding="medium"
+        style={styles.resultItemCard}
       >
-        <Card.Content style={styles.resultItemContent}>
-          <View style={styles.itemLeft}>
-            <List.Icon icon="karate" color={theme.colors.primary} />
-          </View>
-          <View style={styles.itemRight}>
-            <Text style={[styles.itemTitle, { color: theme.colors.onSurface }]}>
-              {item.Name}
-            </Text>
-            <Text
-              style={[
-                styles.itemDescription,
-                { color: theme.colors.onSurfaceVariant },
-              ]}
-            >
-              {item.Belt} {item.Attack ? `| ${item.Attack}` : ""}
-            </Text>
-          </View>
-          <IconButton
-            icon="chevron-right"
-            size={24}
-            color={theme.colors.onSurfaceVariant}
-          />
-        </Card.Content>
-      </Card>
+        <List.Item
+          title={item.Name}
+          description={`${item.Belt} ${item.Attack ? `| ${item.Attack}` : ""}`}
+          titleStyle={[styles.itemTitle, { color: theme.colors.onSurface }]}
+          descriptionStyle={[styles.itemDescription, { color: theme.colors.onSurfaceVariant }]}
+          left={(props) => (
+            <List.Icon
+              {...props}
+              icon="karate"
+              color={theme.colors.primary}
+            />
+          )}
+          right={(props) => (
+            <IconButton
+              {...props}
+              icon="chevron-right"
+              size={20}
+              iconColor={theme.colors.onSurfaceVariant}
+            />
+          )}
+          onPress={() =>
+            router.push(`/technique/${encodeURIComponent(item.Name)}`)
+          }
+        />
+      </ModernCard>
     ),
-    [theme, router],
+    [router, theme],
   );
 
-  // Add a state to track if initial load is complete
-  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
-  useEffect(() => {
-    if (techniques && techniques.length > 0) {
-      setInitialLoadComplete(true);
-    }
-  }, [techniques]);
-
   const renderEmptyComponent = () => {
-    // Show "Loading..." only on initial load
-    if (!initialLoadComplete) {
+    if (isProcessing) {
       return (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading techniques...
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" />
+          <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+            Searching...
           </Text>
         </View>
       );
     }
 
-    // Show specific empty states based on query/filters
     if (debouncedQuery.trim() || totalActiveFilters > 0) {
       return (
         <View style={styles.emptyContainer}>
@@ -238,404 +232,215 @@ export default function SearchScreen() {
             size={48}
             iconColor={theme.colors.outline}
           />
-          <Text style={[styles.emptyText, { color: theme.colors.outline }]}>
-            No matching techniques found.
+          <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+            No techniques found
           </Text>
-          <Text style={[styles.emptySubText, { color: theme.colors.outline }]}>
-            Try adjusting your search or filters.
+          <Text style={[styles.emptySubtext, { color: theme.colors.onSurfaceVariant }]}>
+            Try adjusting your search or filters
           </Text>
         </View>
       );
     }
 
-    // Initial state when no search or filters are active
     return (
       <View style={styles.emptyContainer}>
         <IconButton
-          icon="text-search"
+          icon="magnify"
           size={48}
           iconColor={theme.colors.outline}
         />
-        <Text style={[styles.emptyText, { color: theme.colors.outline }]}>
-          Enter a search term or apply filters to find techniques.
+        <Text style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
+          Search for techniques
+        </Text>
+        <Text style={[styles.emptySubtext, { color: theme.colors.onSurfaceVariant }]}>
+          Enter a technique name or use filters
         </Text>
       </View>
     );
   };
 
   return (
-    <View
-      style={[
-        styles.pageContainer,
-        { backgroundColor: theme.colors.background },
-      ]}
-    >
-      <Appbar.Header
-        style={{ backgroundColor: theme.colors.surface }}
-        statusBarHeight={0}
-      >
-        <Appbar.BackAction
-          onPress={() => router.back()}
-          color={theme.colors.onSurface}
-        />
-        <Appbar.Content
-          title="Search Techniques"
-          titleStyle={{ color: theme.colors.onSurface, fontWeight: "bold" }}
-        />
-        {isProcessing && (
-          <ActivityIndicator
-            color={theme.colors.primary}
-            style={{ marginRight: 10 }}
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ModernHeader
+        title="Search Techniques"
+        subtitle={`${filteredTechniques.length} results`}
+        showBack
+        rightAction={{
+          icon: filtersVisible ? "filter-off" : "filter-variant",
+          onPress: toggleFiltersVisibility,
+        }}
+      />
+
+      <View style={styles.content}>
+        <ModernCard variant="elevated" padding="medium" style={styles.searchCard}>
+          <TextInput
+            mode="outlined"
+            placeholder="Search techniques..."
+            value={query}
+            onChangeText={setQuery}
+            left={<TextInput.Icon icon="magnify" />}
+            right={
+              query.length > 0 ? (
+                <TextInput.Icon icon="close" onPress={() => setQuery("")} />
+              ) : undefined
+            }
+            style={styles.searchInput}
           />
-        )}
-      </Appbar.Header>
+        </ModernCard>
 
-      {/* Fixed Controls Container */}
-      <View style={styles.controlsContainer}>
-        <Card
-          style={[styles.searchCard, { backgroundColor: theme.colors.surface }]}
-          elevation={2}
-        >
-          <Card.Content style={styles.searchCardContent}>
-            <TextInput
-              mode="outlined"
-              placeholder="Search by name..."
-              value={query}
-              onChangeText={setQuery}
-              style={styles.input}
-              left={<TextInput.Icon icon="magnify" />}
-              right={
-                query ? (
-                  <TextInput.Icon
-                    icon="close-circle"
-                    onPress={() => setQuery("")}
-                  />
-                ) : null
-              }
-              outlineColor={theme.colors.outlineVariant}
-              activeOutlineColor={theme.colors.primary}
-              contentStyle={{ paddingVertical: 0 }} // Adjust vertical padding
-              dense // Use dense for smaller input
-            />
-            {/* Show count only when not processing and data is loaded and search/filters are active */}
-            {!isProcessing &&
-              initialLoadComplete &&
-              (debouncedQuery.trim() || totalActiveFilters > 0) && (
-                <View
-                  style={[
-                    styles.countBadge,
-                    { backgroundColor: theme.colors.primaryContainer },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.countText,
-                      { color: theme.colors.onPrimaryContainer },
-                    ]}
-                  >
-                    {filteredTechniques.length}
-                  </Text>
-                </View>
-              )}
-          </Card.Content>
-        </Card>
-
-        <Button
-          mode={filtersVisible ? "contained" : "outlined"} // Use 'contained' for active filter button
-          onPress={toggleFiltersVisibility}
-          style={styles.filterToggleButton}
-          icon={filtersVisible ? "filter-variant-remove" : "filter-variant"}
-          textColor={
-            filtersVisible
-              ? theme.colors.onPrimary
-              : theme.colors.onSurfaceVariant
-          }
-          buttonColor={filtersVisible ? theme.colors.primary : undefined}
-        >
-          {filtersVisible
-            ? "Hide Filters"
-            : `Show Filters ${totalActiveFilters > 0 ? `(${totalActiveFilters})` : ""}`}
-        </Button>
-      </View>
-
-      {filtersVisible && (
-        <ScrollView
-          style={styles.filterScrollContainer}
-          keyboardShouldPersistTaps="handled" // Keep keyboard open/closed as needed
-        >
-          <Card
-            style={[
-              styles.filterPanelCard,
-              { backgroundColor: theme.colors.surfaceVariant },
-            ]}
-            elevation={2} // Subtle elevation for the filter panel
-          >
-            <Card.Content>
-              <Text
-                variant="titleMedium"
-                style={[
-                  styles.filterTitle,
-                  { color: theme.colors.onSurfaceVariant },
-                ]}
-              >
-                Filter by:
+        {filtersVisible && (
+          <ModernCard variant="elevated" padding="large" style={styles.filtersCard}>
+            <View style={styles.filtersHeader}>
+              <Text variant="titleMedium" style={styles.filtersTitle}>
+                Filters
               </Text>
-              <Divider style={styles.divider} />
-              {FILTER_FIELDS.map((field) => (
+              {totalActiveFilters > 0 && (
+                <ModernButton
+                  mode="text"
+                  onPress={clearAllFilters}
+                  compact
+                  style={styles.clearButton}
+                >
+                  Clear All
+                </ModernButton>
+              )}
+            </View>
+
+            {FILTER_FIELDS.map((field) => (
+              <View key={field} style={styles.filterSection}>
                 <List.Accordion
-                  key={field}
-                  title={`${field} (${filters[field].length > 0 ? `${filters[field].length}/` : ""}${getAvailableCount(field)})`}
+                  title={field}
+                  description={`${filters[field].length}/${uniqueFilterValues[field].length}`}
+                  left={(props) => <List.Icon {...props} icon="filter-variant" />}
                   expanded={expandedAccordions.includes(field)}
                   onPress={() => toggleAccordion(field)}
-                  style={[
-                    styles.accordion,
-                    { backgroundColor: theme.colors.surface },
-                  ]}
-                  titleStyle={{ color: theme.colors.onSurface }}
-                  left={(props) => (
-                    <List.Icon
-                      {...props}
-                      icon={
-                        expandedAccordions.includes(field)
-                          ? "chevron-up"
-                          : "chevron-down"
-                      }
-                      color={theme.colors.onSurfaceVariant}
-                    />
-                  )}
-                  right={(props) => (
-                    <View
-                      style={{ flexDirection: "row", alignItems: "center" }}
-                    >
-                      {/* Optional: Show active filter count badge here */}
-                      {filters[field].length > 0 && (
-                        <View
-                          style={[
-                            styles.filterAccordionBadge,
-                            { backgroundColor: theme.colors.primary },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.filterAccordionBadgeText,
-                              { color: theme.colors.onPrimary },
-                            ]}
-                          >
-                            {filters[field].length}
-                          </Text>
-                        </View>
-                      )}
-                      <List.Icon
-                        {...props}
-                        icon={
-                          expandedAccordions.includes(field)
-                            ? "minus-circle-outline"
-                            : "plus-circle-outline"
-                        }
-                        color={theme.colors.onSurfaceVariant}
-                      />
-                    </View>
-                  )}
+                  style={styles.accordion}
                 >
-                  <Divider style={styles.divider} />
-                  {uniqueFilterValues[field].map((value) => (
-                    <Checkbox.Item
-                      key={value}
-                      label={value}
-                      status={
-                        filters[field].includes(value) ? "checked" : "unchecked"
+                  <View style={styles.filterOptions}>
+                    {uniqueFilterValues[field].map((value) => {
+                      if (field === 'Belt') {
+                        const beltKey = getBeltColor(value);
+                        const beltColor = BeltColors[beltKey]?.light || '#eee';
+                        const textColor = BeltTextColors[beltKey] || '#000';
+                        return (
+                          <Chip
+                            key={value}
+                            selected={filters[field].includes(value)}
+                            onPress={() => toggleFilterOption(field, value)}
+                            style={[styles.filterChip, { backgroundColor: beltColor }]}
+                            textStyle={[styles.filterChipText, { color: textColor }]}
+                          >
+                            {value}
+                          </Chip>
+                        );
                       }
-                      onPress={() => toggleFilterOption(field, value)}
-                      style={styles.checkboxItem}
-                      labelStyle={{ color: theme.colors.onSurfaceVariant }}
-                      color={theme.colors.primary}
-                      uncheckedColor={theme.colors.onSurfaceDisabled}
-                      position="leading" // Place checkbox on the left
-                    />
-                  ))}
+                      return (
+                        <Chip
+                          key={value}
+                          selected={filters[field].includes(value)}
+                          onPress={() => toggleFilterOption(field, value)}
+                          style={styles.filterChip}
+                          textStyle={styles.filterChipText}
+                        >
+                          {value}
+                        </Chip>
+                      );
+                    })}
+                  </View>
                 </List.Accordion>
-              ))}
-              <Button
-                onPress={clearAllFilters}
-                style={styles.clearButton}
-                mode="outlined" // Use outlined for clear button
-                icon="filter-off-outline"
-                disabled={totalActiveFilters === 0}
-                textColor={theme.colors.error}
-                buttonColor={theme.colors.errorContainer} // Subtle background for error button
-              >
-                Clear All Filters
-              </Button>
-            </Card.Content>
-          </Card>
-        </ScrollView>
-      )}
+              </View>
+            ))}
+          </ModernCard>
+        )}
 
-      {/* Results List */}
-      {!filtersVisible && (
         <FlatList
           data={filteredTechniques}
           renderItem={renderTechniqueItem}
           keyExtractor={(item) => item.Name}
-          contentContainerStyle={styles.listContentContainer}
-          keyboardShouldPersistTaps="handled"
-          ListEmptyComponent={renderEmptyComponent()} // Use the centralized empty component renderer
-          // Performance Props for FlatList
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={21}
-          removeClippedSubviews={true}
-          updateCellsBatchingPeriod={50}
+          contentContainerStyle={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={renderEmptyComponent}
         />
-      )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pageContainer: {
+  container: {
     flex: 1,
   },
-  controlsContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-  },
-  filterScrollContainer: {
-    paddingHorizontal: 16,
-    maxHeight: "50%", // Increased max height for filters
-    marginBottom: 16, // Add space below filters
-  },
-  listContentContainer: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    flexGrow: 1,
-  },
-  card: {
-    marginBottom: 12, // Slightly reduced card margin
-    borderRadius: 8, // Added border radius
+  content: {
+    flex: 1,
+    padding: 20,
+    gap: 16,
   },
   searchCard: {
     marginBottom: 8,
   },
-  searchCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  searchInput: {
+    backgroundColor: 'transparent',
   },
-  input: {
-    flex: 1,
-    backgroundColor: "transparent",
-    height: 40, // Fixed height for dense input
-  },
-  countBadge: {
-    marginLeft: 12,
-    paddingHorizontal: 8, // Reduced horizontal padding
-    paddingVertical: 6, // Reduced vertical padding
-    borderRadius: 16,
-    minWidth: 30, // Reduced min width
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  countText: {
-    fontSize: 12, // Reduced font size
-    fontWeight: "bold",
-  },
-  filterToggleButton: {
+  filtersCard: {
     marginBottom: 8,
-    paddingVertical: 4,
-    borderRadius: 8, // Added border radius
   },
-  filterPanelCard: {
-    marginBottom: 0, // No bottom margin inside scrollview
+  filtersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  filterTitle: {
-    marginBottom: 12,
-    fontWeight: "bold",
-  },
-  divider: {
-    marginVertical: 8,
-  },
-  accordion: {
-    marginBottom: 6, // Reduced accordion margin
-    borderRadius: 6, // Added border radius
-    borderWidth: StyleSheet.hairlineWidth, // Subtle border
-    borderColor: "rgba(0,0,0,0.08)", // Light border color
-  },
-  filterAccordionBadge: {
-    marginLeft: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 4,
-    borderRadius: 10,
-    minWidth: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  filterAccordionBadgeText: {
-    fontSize: 10,
-    fontWeight: "bold",
-  },
-  checkboxItem: {
-    paddingVertical: 2, // Reduced vertical padding
-    paddingHorizontal: 4, // Reduced horizontal padding
+  filtersTitle: {
+    fontWeight: '600',
   },
   clearButton: {
-    marginTop: 16,
-    alignSelf: "stretch", // Make clear button full width
-    borderRadius: 8,
+    marginLeft: 8,
+  },
+  filterSection: {
+    marginBottom: 8,
+  },
+  accordion: {
+    backgroundColor: 'transparent',
+  },
+  filterOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  filterChip: {
+    marginBottom: 4,
+  },
+  filterChipText: {
+    fontSize: 12,
+  },
+  listContainer: {
+    gap: 12,
   },
   resultItemCard: {
-    marginBottom: 8, // Reduced margin between result items
-    borderRadius: 8,
-  },
-  resultItemContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8, // Adjusted padding
-    paddingHorizontal: 12,
-  },
-  itemLeft: {
-    marginRight: 12,
-  },
-  itemRight: {
-    flex: 1,
-    justifyContent: "center",
+    marginBottom: 8,
   },
   itemTitle: {
-    fontSize: 16, // Slightly reduced font size
-    fontWeight: "600", // Slightly bolder
+    fontWeight: '600',
+    fontSize: 16,
   },
   itemDescription: {
-    fontSize: 12, // Slightly reduced font size
-    opacity: 0.9, // Slightly less opacity
+    fontSize: 14,
+    marginTop: 2,
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    marginTop: 20,
+    alignItems: 'center',
+    paddingVertical: 60,
   },
   emptyText: {
+    marginTop: 16,
     fontSize: 18,
-    marginTop: 12,
-    textAlign: "center",
-    fontWeight: "500",
+    fontWeight: '500',
   },
-  emptySubText: {
-    fontSize: 14,
+  emptySubtext: {
     marginTop: 8,
-    textAlign: "center",
-    color: "rgba(0,0,0,0.6)", // Subtle color
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    marginTop: 40,
-  },
-  loadingText: {
-    marginTop: 12,
-    fontSize: 16,
+    fontSize: 14,
+    textAlign: 'center',
   },
 });

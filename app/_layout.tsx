@@ -1,3 +1,4 @@
+import { DarkTheme } from "@/constants/Theme";
 import { TechniquesProvider } from "@/context/TechniquesProvider";
 import { useAnonymousAuth } from "@/hooks/useAnonAuth";
 import * as Notifications from "expo-notifications";
@@ -5,7 +6,7 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { StyleSheet, View } from "react-native";
-import { MD3DarkTheme, Provider as PaperProvider } from "react-native-paper";
+import { Provider as PaperProvider } from "react-native-paper";
 import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 // Configure notification behavior
@@ -26,7 +27,7 @@ export default function RootLayout() {
   if (initializing) return null;
   return (
     <SafeAreaProvider>
-      <PaperProvider theme={MD3DarkTheme}>
+      <PaperProvider theme={DarkTheme}>
         <TechniquesProvider>
           <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
             <StatusBar style="light" />
@@ -34,7 +35,8 @@ export default function RootLayout() {
               <Stack
                 screenOptions={{
                   headerShown: false,
-                  animation: "fade_from_bottom",
+                  animation: "slide_from_right",
+                  animationDuration: 200,
                 }}
               />
             </View>
@@ -48,9 +50,7 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: MD3DarkTheme.colors.background,
-    paddingTop: 24,
-    paddingBottom: 24,
+    backgroundColor: DarkTheme.colors.background,
   },
   container: {
     flex: 1,

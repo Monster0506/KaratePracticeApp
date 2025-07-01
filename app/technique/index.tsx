@@ -1,21 +1,20 @@
-import React, { useEffect, useState } from "react";
-import { View, StyleSheet, FlatList } from "react-native";
-import {
-  List,
-  IconButton,
-  Text,
-  useTheme,
-  Appbar, // Added for header
-  Card, // Added for list items
-  MD3Colors, // For more distinct playing highlight
-  ActivityIndicator, // For empty list or loading
-  Divider, // Re-added for subtle separation if needed
-} from "react-native-paper";
-import { useRouter } from "expo-router";
+import { ModernCard } from "@/components/ui/ModernCard";
+import { ModernHeader } from "@/components/ui/ModernHeader";
 import { useTechniques } from "@/context/TechniquesProvider";
-import * as Speech from "expo-speech";
 import { logPracticeSession } from "@/utils/practiceLogger";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import * as Speech from "expo-speech";
+import React, { useEffect, useRef, useState } from "react";
+import { FlatList, StyleSheet, View } from "react-native";
+import {
+  ActivityIndicator,
+  IconButton,
+  List,
+  ProgressBar,
+  Text,
+  useTheme,
+} from "react-native-paper";
 
 export default function TechniqueList() {
   const { currentList, flagged } = useTechniques();
@@ -25,6 +24,7 @@ export default function TechniqueList() {
   const [index, setIndex] = useState(0);
   const [delayMs, setDelayMs] = useState(4000);
   const [startTime, setStartTime] = useState<number | null>(null);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Assuming currentList might be null or undefined initially
   const sortedList = currentList || [];
@@ -43,8 +43,6 @@ export default function TechniqueList() {
 
     if (index >= sortedList.length) {
       setPlaying(false);
-      setIndex(0);
-
       if (startTime) {
         logPracticeSession({
           timestamp: new Date().toISOString(),
@@ -63,14 +61,48 @@ export default function TechniqueList() {
     Speech.stop();
     Speech.speak(tech.Name, {
       onDone: () => {
-        setTimeout(() => setIndex((prev) => prev + 1), delayMs);
+        if (index < sortedList.length - 1) {
+          timeoutRef.current = setTimeout(() => setIndex((prev) => prev + 1), delayMs);
+        } else {
+          setIndex(sortedList.length);
+          setPlaying(false);
+          if (startTime) {
+            logPracticeSession({
+              timestamp: new Date().toISOString(),
+              techniques: sortedList.map((t) => t.Name),
+              durationMs: Date.now() - startTime,
+              flagged: flagged.filter((id) =>
+                sortedList.some((t) => t.Name === id),
+              ),
+            });
+            setStartTime(null);
+          }
+        }
       },
       onError: (error) => {
         console.error("Speech error:", error);
-        // Optionally, move to the next item or stop playback on error
-        setTimeout(() => setIndex((prev) => prev + 1), delayMs);
+        if (index < sortedList.length - 1) {
+          timeoutRef.current = setTimeout(() => setIndex((prev) => prev + 1), delayMs);
+        } else {
+          setIndex(sortedList.length);
+          setPlaying(false);
+          if (startTime) {
+            logPracticeSession({
+              timestamp: new Date().toISOString(),
+              techniques: sortedList.map((t) => t.Name),
+              durationMs: Date.now() - startTime,
+              flagged: flagged.filter((id) =>
+                sortedList.some((t) => t.Name === id),
+              ),
+            });
+            setStartTime(null);
+          }
+        }
       },
     });
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
   }, [playing, index, sortedList, delayMs, startTime, flagged]);
 
   const togglePlay = () => {
@@ -79,8 +111,12 @@ export default function TechniqueList() {
       Speech.stop();
       setPlaying(false);
     } else {
-      setStartTime(Date.now());
-      setIndex(0); // Reset index when starting play
+      if (index >= sortedList.length) {
+        setIndex(0);
+        setStartTime(Date.now());
+      } else {
+        if (index === 0) setStartTime(Date.now());
+      }
       setPlaying(true);
     }
   };
@@ -88,46 +124,81 @@ export default function TechniqueList() {
   const rewind = () => {
     if (sortedList.length === 0) return;
     Speech.stop();
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
     setIndex((i) => {
       const newIndex = Math.max(i - 1, 0);
-      // If playing, immediately speak the new item
       if (playing && newIndex < sortedList.length) {
-        Speech.speak(sortedList[newIndex].Name, {
-          onDone: () => {
-            setTimeout(
-              () => setIndex((prev) => prev + 1), // This seems off, should just set to newIndex + 1 or handle next step
-              delayMs,
-            );
-          },
-        });
+        Speech.speak(sortedList[newIndex].Name);
       }
       return newIndex;
     });
   };
 
+  const next = () => {
+    if (sortedList.length === 0) return;
+    Speech.stop();
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    setIndex((i) => {
+      const newIndex = Math.min(i + 1, sortedList.length - 1);
+      if (newIndex >= sortedList.length - 1) {
+        setPlaying(false); // Stop playing if at the end
+        return sortedList.length - 1;
+      }
+      if (playing && newIndex < sortedList.length) {
+        Speech.speak(sortedList[newIndex].Name);
+      }
+      return newIndex;
+    });
+  };
+
+  // Calculate progress - start at 0 when not playing, show current progress when playing
+  const getProgress = () => {
+    if (sortedList.length === 0) return 0;
+    if (!playing && index === 0) return 0; // Not started yet
+    if (index >= sortedList.length) return 1; // Completed
+    return index / sortedList.length; // Current progress
+  };
+
+  // Get display text for progress
+  const getProgressText = () => {
+    if (sortedList.length === 0) return "0 of 0";
+    if (!playing && index === 0) return "0 of " + sortedList.length;
+    if (index >= sortedList.length) return sortedList.length + " of " + sortedList.length;
+    return (index + 1) + " of " + sortedList.length;
+  };
+
+  // Get percentage for display
+  const getProgressPercentage = () => {
+    if (sortedList.length === 0) return 0;
+    if (!playing && index === 0) return 0;
+    if (index >= sortedList.length) return 100;
+    return Math.round((index / sortedList.length) * 100);
+  };
+
   const renderItem = ({ item, index: i }: { item: any; index: number }) => {
     const isPlayingThis = i === index && playing;
+    const isFlagged = flagged.includes(item.Name);
+    
     return (
-      <Card
+      <ModernCard
+        key={`${item.Belt}-${item.Number}-${item.Name}`}
+        variant="elevated"
+        padding="medium"
         style={[
-          styles.card,
-          { backgroundColor: theme.colors.surfaceVariant },
+          styles.techniqueCard,
           isPlayingThis && {
             borderColor: theme.colors.primary,
             borderWidth: 2,
             backgroundColor: theme.colors.primaryContainer,
           },
-        ]}
-        onPress={() =>
-          router.push(`/technique/${encodeURIComponent(item.Name)}`)
-        }
+        ] as any}
       >
         <List.Item
           title={item.Name}
           description={`${item.Belt} - #${item.Number}`}
           titleStyle={[
             styles.itemTitle,
-            { color: theme.colors.onSurfaceVariant },
+            { color: theme.colors.onSurface },
             isPlayingThis && { color: theme.colors.onPrimaryContainer },
           ]}
           descriptionStyle={[
@@ -136,44 +207,48 @@ export default function TechniqueList() {
             isPlayingThis && { color: theme.colors.onPrimaryContainer },
           ]}
           left={(props) => (
-            <List.Icon
-              {...props}
-              icon={isPlayingThis ? "volume-high" : "chevron-right-circle"}
-              color={
-                isPlayingThis
-                  ? theme.colors.primary
-                  : theme.colors.onSurfaceVariant
-              }
-            />
+            <View style={styles.leftContent}>
+              <List.Icon
+                {...props}
+                icon={isPlayingThis ? "volume-high" : "chevron-right-circle"}
+                color={
+                  isPlayingThis
+                    ? theme.colors.primary
+                    : theme.colors.onSurfaceVariant
+                }
+              />
+              {isFlagged && (
+                <IconButton
+                  icon="flag"
+                  size={16}
+                  iconColor={theme.colors.secondary}
+                  style={styles.flagIcon}
+                />
+              )}
+            </View>
           )}
+          onPress={() =>
+            router.push(`/technique/${encodeURIComponent(item.Name)}`)
+          }
         />
-      </Card>
+      </ModernCard>
     );
   };
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
-      <Appbar.Header
-        style={{ backgroundColor: theme.colors.surface }}
-        statusBarHeight={0} // Assuming status bar is handled by Expo
-      >
-        <Appbar.BackAction
-          onPress={() => router.back()}
-          color={theme.colors.onSurface}
-        />
-        <Appbar.Content
-          title="Techniques"
-          titleStyle={{ color: theme.colors.onSurface, fontWeight: "bold" }}
-        />
-      </Appbar.Header>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <ModernHeader
+        title="Techniques"
+        subtitle={`${sortedList.length} techniques`}
+        showBack
+      />
 
       <FlatList
         data={sortedList}
         keyExtractor={(item) => `${item.Belt}-${item.Number}-${item.Name}`}
         renderItem={renderItem}
         contentContainerStyle={styles.listContentContainer}
+        showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <IconButton
@@ -192,38 +267,51 @@ export default function TechniqueList() {
       />
 
       {sortedList.length > 0 && (
-        <View
-          style={[
-            styles.player,
-            { backgroundColor: theme.colors.surfaceVariant },
-          ]}
-        >
-          <IconButton
-            icon="rewind"
-            onPress={rewind}
-            size={36}
-            iconColor={theme.colors.onSurfaceVariant}
-            disabled={playing && index === 0}
-          />
-          <IconButton
-            icon={playing ? "pause-circle" : "play-circle"}
-            onPress={togglePlay}
-            size={56} // Larger main button
-            iconColor={theme.colors.primary}
-            animated
-          />
-          <IconButton // Placeholder for a potential "next" button
-            icon="fast-forward"
-            onPress={() => {
-              if (playing) {
-                Speech.stop();
-                setIndex((i) => Math.min(i + 1, sortedList.length - 1));
-              }
-            }}
-            size={36}
-            iconColor={theme.colors.onSurfaceVariant}
-            disabled={playing && index >= sortedList.length - 1}
-          />
+        <View style={styles.player}>
+          <View style={styles.playerContent}>
+            {/* Progress Bar */}
+            <View style={styles.progressSection}>
+              <View style={styles.progressHeader}>
+                <Text variant="bodySmall" style={[styles.progressText, { color: theme.colors.onSurfaceVariant }]}>
+                  {getProgressText()}
+                </Text>
+              </View>
+              <ProgressBar
+                progress={getProgress()}
+                color={theme.colors.primary}
+                style={styles.progressBar}
+              />
+            </View>
+            
+            {/* Player Controls */}
+            <View style={styles.playerControls}>
+              <IconButton
+                icon="rewind"
+                size={24}
+                onPress={rewind}
+                disabled={index === 0}
+                iconColor={index === 0 ? theme.colors.onSurfaceDisabled : theme.colors.onSurface}
+                style={styles.controlButton}
+              />
+              
+              <IconButton
+                icon={playing ? "pause-circle" : "play-circle"}
+                size={48}
+                onPress={togglePlay}
+                iconColor={theme.colors.primary}
+                style={styles.playButton}
+              />
+              
+              <IconButton
+                icon="fast-forward"
+                size={24}
+                onPress={next}
+                disabled={index >= sortedList.length - 1}
+                iconColor={index >= sortedList.length - 1 ? theme.colors.onSurfaceDisabled : theme.colors.onSurface}
+                style={styles.controlButton}
+              />
+            </View>
+          </View>
         </View>
       )}
     </View>
@@ -235,41 +323,71 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   listContentContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    flexGrow: 1, // Ensures empty component can center
+    padding: 20,
+    gap: 12,
   },
-  card: {
-    marginBottom: 12,
-    elevation: 2, // Subtle shadow for cards
+  techniqueCard: {
+    marginBottom: 8,
+  },
+  leftContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  flagIcon: {
+    marginLeft: -8,
   },
   itemTitle: {
-    fontSize: 18,
-    fontWeight: "600", // Bolder title
+    fontWeight: '600',
+    fontSize: 16,
   },
   itemDesc: {
     fontSize: 14,
-    opacity: 0.8,
-  },
-  player: {
-    flexDirection: "row",
-    justifyContent: "space-around", // Better spacing for controls
-    alignItems: "center",
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-    borderTopWidth: 1,
-    borderTopColor: MD3Colors.neutralVariant50, // Subtle border
-    elevation: 4, // Player bar stands out a bit
+    marginTop: 2,
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
+    alignItems: 'center',
+    paddingVertical: 60,
   },
   emptyText: {
-    fontSize: 18,
-    marginTop: 12,
-    textAlign: "center",
+    marginTop: 16,
+    fontSize: 16,
+  },
+  player: {
+    margin: 20,
+    marginTop: 0,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  playerContent: {
+    gap: 16,
+  },
+  progressSection: {
+    gap: 8,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  progressBar: {
+    height: 6,
+    borderRadius: 3,
+  },
+  playerControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+  },
+  controlButton: {
+    margin: 0,
+  },
+  playButton: {
+    margin: 0,
   },
 });
